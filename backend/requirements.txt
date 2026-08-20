@@ -8,3 +8,4 @@ pytest
 httpx
 openai
 redis
+mysql-connector-python>=8.3

@@ -1,6 +1,30 @@
 version: "2.4"
 
 services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-stock_picker}
+      MYSQL_USER: ${MYSQL_USER:-stock_picker}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
@@ -19,11 +43,18 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DB: ${MYSQL_DATABASE:-stock_picker}
+      MYSQL_USER: ${MYSQL_USER:-stock_picker}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       SELECTION_ENGINE_DATA_MODE: real
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NO_PROXY: "*"
       no_proxy: "*"
     depends_on:
+      mysql:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
@@ -51,4 +82,5 @@ services:
       - ./models:/usr/share/nginx/html/models:ro
 
 volumes:
+  mysql_data:
   redis_data:

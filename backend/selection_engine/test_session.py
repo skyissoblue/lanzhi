@@ -83,3 +83,22 @@ def test_market_data_is_cached(fake_ak):
     session.apply_condition({"type":"ma_cross_weekly"})
     session.remove_last(); session.apply_condition({"type":"ma_cross_weekly"})
     assert fake_ak.hist_calls == 1
+
+
+def test_local_mode_never_calls_akshare(monkeypatch):
+    local_stocks = [{
+        "code": "000001", "name": "本地科技", "industry": "科技", "board": "主板",
+        "close": 12.0, "weekly_ma10": 10.0, "weekly_deviation": 2.0,
+        "rps_250": 90.0, "volume_ratio": 2.0, "market_cap": 10_000_000_000,
+        "pe": 18.0, "listed_days": 1000,
+    }]
+    monkeypatch.setenv("SELECTION_ENGINE_DATA_MODE", "local")
+    monkeypatch.setattr("selection_engine.database.load_stocks", lambda limit=None: local_stocks)
+    monkeypatch.setattr(data_provider, "get_all_stocks", lambda: pytest.fail("AkShare must not be called"))
+    monkeypatch.setattr(data_provider, "get_stock_info", lambda code: pytest.fail("AkShare must not be called"))
+    monkeypatch.setattr(data_provider, "get_daily_kline", lambda code: pytest.fail("AkShare must not be called"))
+
+    session = SelectionSession()
+    result = session.apply_condition({"type": "industry", "value": "科技"})
+    assert result["after"] == 1
+    assert session.apply_condition({"type": "ma_cross_weekly"})["after"] == 1

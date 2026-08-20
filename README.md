@@ -11,17 +11,25 @@ Flutter 前端与 FastAPI 渐进式选股引擎组成的一体化项目，支持
 ├── test/                    # Flutter Widget 测试
 ├── Dockerfile               # Flutter Web 多阶段构建
 ├── nginx.conf               # Web 静态托管与 API 反向代理
-└── docker-compose.yml       # frontend + backend + redis
+└── docker-compose.yml       # frontend + backend + MySQL + Redis
 ```
 
 ## Docker 一键启动
 
 ```bash
 cp .env.example .env
-# 在 .env 中配置新生成的 OPENAI_API_KEY；不使用自然语言解析时可以留空
+# 在 .env 中设置 OpenAI Key 和两组不同的 MySQL 强密码
 docker compose up -d --build
 docker compose ps
 ```
+
+首次启动后执行一批行情初始化：
+
+```bash
+docker compose exec backend python -m selection_engine.pipeline
+```
+
+生产模式下，用户筛选只读取 MySQL 中的股票快照，不会在 API 请求中调用 AkShare。后台调度器默认每 60 分钟轮转更新 200 只股票：日线以 Parquet 保存到 `stock_data` 卷，股票元数据和预计算指标保存到 MySQL。可用 `UPDATE_INTERVAL_MINUTES`、`UPDATE_BATCH_SIZE` 和 `REQUEST_DELAY` 调整更新速度。全市场首次补齐会跨多个批次完成，失败股票会在下一轮轮转时重试。
 
 Compose 默认使用已验证的 `build/web` 产物构建轻量 Nginx 镜像，适合网络受限服务器。需要在容器内重新编译 Flutter Web 时，可移除 `frontend.build.target: prebuilt`，Dockerfile 会执行完整 Flutter 多阶段构建。
 

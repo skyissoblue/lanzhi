@@ -4,16 +4,22 @@ import os
 from copy import deepcopy
 from typing import Any
 from . import data_provider, indicators
+from . import database
 from .cache import create_cache
 from .conditions import COMPARATORS, required
 from .mock_data import generate_mock_market
 
 class SelectionSession:
     def __init__(self, limit: int | None = None) -> None:
-        self._mock_mode = os.getenv("SELECTION_ENGINE_DATA_MODE", "real").lower() == "mock"
+        self._data_mode = os.getenv("SELECTION_ENGINE_DATA_MODE", "real").lower()
+        self._mock_mode = self._data_mode == "mock"
         if self._mock_mode:
             stocks = generate_mock_market()
             self._universe = stocks[:limit] if limit is not None else stocks
+        elif self._data_mode == "local":
+            self._universe = database.load_stocks(limit)
+            if not self._universe:
+                raise RuntimeError("local stock database is empty; run the market data pipeline first")
         else:
             stocks = data_provider.get_all_stocks()
             if limit is not None:
@@ -67,6 +73,18 @@ class SelectionSession:
             elif kind == "ma_deviation_weekly": return abs(stock["close"] - stock["ma10_weekly"]) / stock["ma10_weekly"] * 100 <= float(required(condition, "max_pct"))
             elif kind in {"rps", "volume_ratio", "market_cap", "pe"}: return self._compare(float(stock[{"rps":"rps_250"}.get(kind, kind)]), condition)
             elif kind in {"macd_cross", "kdj_cross"}: return False
+        if self._data_mode == "local":
+            if kind == "industry": return str(required(condition, "value")) in str(stock.get("industry") or "")
+            elif kind == "board": return stock.get("board") == str(required(condition, "value"))
+            elif kind == "ma_cross_weekly":
+                return self._has(stock, "close", "weekly_ma10") and float(stock["close"]) >= float(stock["weekly_ma10"])
+            elif kind == "ma_deviation_weekly":
+                return self._has(stock, "weekly_deviation") and abs(float(stock["weekly_deviation"])) <= float(required(condition, "max_pct"))
+            elif kind == "rps": return self._stored_compare(stock, "rps_250", condition)
+            elif kind == "volume_ratio": return self._stored_compare(stock, "volume_ratio", condition)
+            elif kind == "market_cap": return self._stored_compare(stock, "market_cap", condition)
+            elif kind == "pe": return self._stored_compare(stock, "pe", condition)
+            elif kind in {"macd_cross", "kdj_cross"}: return False
         if kind == "industry": return str(required(condition, "value")) in self._info(code)["industry"]
         elif kind == "board": return self._info(code)["board"] == str(required(condition, "value"))
         elif kind == "ma_cross_weekly":
@@ -87,6 +105,14 @@ class SelectionSession:
         elif kind == "kdj_cross":
             return self._indicator(code, indicators.calc_kdj_cross, self._kline(code))
         raise ValueError(f"unsupported condition type: {kind!r}")
+
+    @staticmethod
+    def _has(stock: dict[str, Any], *fields: str) -> bool:
+        return all(stock.get(field) is not None for field in fields)
+
+    def _stored_compare(self, stock: dict[str, Any], field: str, condition: dict) -> bool:
+        value = stock.get(field)
+        return value is not None and self._compare(float(value), condition)
 
     @staticmethod
     def _compare(actual: float, condition: dict) -> bool:

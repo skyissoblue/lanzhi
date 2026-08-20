@@ -1,6 +1,7 @@
 """Real A-share data access backed by AkShare."""
 from __future__ import annotations
 from datetime import date, timedelta
+import time
 from typing import Any
 import pandas as pd
 
@@ -8,8 +9,20 @@ def _akshare():
     import akshare as ak
     return ak
 
+def _retry(call, attempts: int = 3):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return call()
+        except Exception as error:
+            last_error = error
+            if attempt + 1 < attempts:
+                time.sleep(2 ** attempt)
+    raise last_error
+
+
 def get_all_stocks() -> pd.DataFrame:
-    raw = _akshare().stock_info_a_code_name()
+    raw = _retry(lambda: _akshare().stock_info_a_code_name())
     frame = raw.rename(columns={"代码": "code", "名称": "name"})
     if not {"code", "name"}.issubset(frame.columns):
         raise ValueError("AkShare stock list is missing code/name columns")
@@ -18,9 +31,10 @@ def get_all_stocks() -> pd.DataFrame:
     result["name"] = result["name"].astype(str).str.strip()
     return result.drop_duplicates("code").reset_index(drop=True)
 
-def get_daily_kline(code: str) -> pd.DataFrame:
+def get_daily_kline(code: str, start_date: date | None = None) -> pd.DataFrame:
     end = date.today()
-    raw = _akshare().stock_zh_a_hist(symbol=str(code).zfill(6), period="daily", start_date=(end - timedelta(days=550)).strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq")
+    start = start_date or (end - timedelta(days=550))
+    raw = _retry(lambda: _akshare().stock_zh_a_hist(symbol=str(code).zfill(6), period="daily", start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq"))
     frame = raw.rename(columns={"日期":"date", "开盘":"open", "最高":"high", "最低":"low", "收盘":"close", "成交量":"volume", "成交额":"amount"})
     required = ["date", "open", "high", "low", "close", "volume", "amount"]
     if not set(required).issubset(frame.columns):
@@ -43,8 +57,21 @@ def _number(value: Any) -> float | None:
 
 def get_stock_info(code: str) -> dict[str, Any]:
     normalized = str(code).zfill(6)
-    raw = _akshare().stock_individual_info_em(symbol=normalized)
+    raw = _retry(lambda: _akshare().stock_individual_info_em(symbol=normalized))
     if not {"item", "value"}.issubset(raw.columns):
         raise ValueError(f"AkShare stock info for {code} is missing item/value columns")
     values = dict(zip(raw["item"].astype(str), raw["value"], strict=False))
     return {"code":normalized, "name":str(values.get("股票简称", "")), "industry":str(values.get("行业", "")), "board":_board_for_code(normalized), "market_cap":_number(values.get("总市值")), "pe":_number(values.get("市盈率(TTM)", values.get("市盈率(静)")))}
+
+
+def get_market_snapshot() -> pd.DataFrame:
+    """Fetch one bulk quote snapshot for valuation fields."""
+    raw = _retry(lambda: _akshare().stock_zh_a_spot_em())
+    frame = raw.rename(columns={"代码": "code", "名称": "name", "最新价": "close", "总市值": "market_cap", "市盈率-动态": "pe"})
+    columns = [column for column in ("code", "name", "close", "market_cap", "pe") if column in frame.columns]
+    result = frame.loc[:, columns].copy()
+    result["code"] = result["code"].astype(str).str.zfill(6)
+    for column in ("close", "market_cap", "pe"):
+        if column in result:
+            result[column] = pd.to_numeric(result[column], errors="coerce")
+    return result.drop_duplicates("code")

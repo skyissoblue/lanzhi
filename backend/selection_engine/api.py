@@ -20,6 +20,7 @@ from .schemas import (
 )
 from .nlu_parser import parse_condition
 from .session import SelectionSession
+from .scheduler import start_scheduler, stop_scheduler
 
 
 app = FastAPI(title="Progressive Stock Selection API", version="1.0.0")
@@ -31,6 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 session_store: dict[str, SelectionSession] = {}
+
+
+@app.on_event("startup")
+def startup() -> None:
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown() -> None:
+    stop_scheduler()
 
 
 @app.get("/health")

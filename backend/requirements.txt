@@ -9,3 +9,5 @@ httpx
 openai
 redis
 mysql-connector-python>=8.3
+pyarrow>=14
+APScheduler>=3.10

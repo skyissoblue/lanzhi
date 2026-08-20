@@ -78,6 +78,7 @@ class MarketDataPipeline:
     def update_batch(self) -> dict[str, Any]:
         """Incrementally update a bounded stock batch and its indicators."""
         codes, next_offset = self._batch_codes()
+        metadata = {row["code"]: row for row in load_stocks()}
         updated: list[dict[str, Any]] = []
         failed: list[str] = []
         for code in codes:
@@ -90,7 +91,7 @@ class MarketDataPipeline:
                 frame = local_store.load(code)
                 if frame.empty:
                     raise ValueError("no local kline data")
-                detail = {"code": code, "board": _board(code)}
+                detail = {"code": code, "name": metadata[code]["name"], "board": _board(code)}
                 try:
                     detail.update(data_provider.get_stock_info(code))
                 except Exception as error:

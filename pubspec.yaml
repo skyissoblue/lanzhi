@@ -1,0 +1,27 @@
+name: voice_stock_picker
+description: "Voice-driven progressive A-share stock picker."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.9.0
+  provider: ^6.1.5+1
+  flutter_riverpod: ^2.6.1
+  json_annotation: ^4.9.0
+  k_chart_plus: ^1.0.4
+  record: ^7.1.1
+  path_provider: ^2.1.5
+  whisper_kit: ^0.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

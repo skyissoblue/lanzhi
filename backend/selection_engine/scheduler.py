@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .config import SCHEDULER_ENABLED, UPDATE_INTERVAL_MINUTES
 from .pipeline import MarketDataPipeline
@@ -34,7 +35,7 @@ def start_scheduler() -> None:
         id="market-data-update",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.now() + timedelta(seconds=15),
+        next_run_time=datetime.now(ZoneInfo("Asia/Shanghai")) + timedelta(seconds=15),
     )
     _scheduler.start()
     logger.info("market data scheduler started interval=%s minutes", UPDATE_INTERVAL_MINUTES)

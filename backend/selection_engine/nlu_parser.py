@@ -84,6 +84,10 @@ def parse_condition(
     if not isinstance(text, str) or not text.strip():
         return {"action": "error", "message": "text must not be empty"}
 
+    local_result = _parse_locally(text)
+    if local_result is not None:
+        return local_result
+
     try:
         client = OpenAI()
         response = client.responses.parse(

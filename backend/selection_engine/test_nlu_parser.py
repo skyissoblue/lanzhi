@@ -58,7 +58,7 @@ def test_incremental_parse_includes_context(monkeypatch):
     fake = FakeClient(payload)
     monkeypatch.setattr(nlu_parser, "OpenAI", lambda: fake)
     context = [{"type": "industry", "value": "科技"}]
-    result = nlu_parser.parse_condition("再加个成交量放大的", context)
+    result = nlu_parser.parse_condition("结合已有条件继续筛选强势标的", context)
     assert result["condition"]["type"] == "volume_ratio"
     system_prompt = fake.responses.last_request["input"][0]["content"]
     assert '"type": "industry"' in system_prompt

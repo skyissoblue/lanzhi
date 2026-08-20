@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from . import data_provider, indicators, local_store
-from .config import REQUEST_DELAY, STATE_FILE, UPDATE_BATCH_SIZE, ensure_dirs
+from .config import DETAIL_BATCH_SIZE, REQUEST_DELAY, STATE_FILE, UPDATE_BATCH_SIZE, ensure_dirs
 from .database import init_schema, load_stocks, save_update_log, upsert_stocks
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class MarketDataPipeline:
         metadata = {row["code"]: row for row in load_stocks()}
         updated: list[dict[str, Any]] = []
         failed: list[str] = []
-        for code in codes:
+        for index, code in enumerate(codes):
             try:
                 existing = local_store.load(code)
                 start = None if existing.empty else existing["date"].max().date() - timedelta(days=7)
@@ -92,10 +92,11 @@ class MarketDataPipeline:
                 if frame.empty:
                     raise ValueError("no local kline data")
                 detail = {"code": code, "name": metadata[code]["name"], "board": _board(code)}
-                try:
-                    detail.update(data_provider.get_stock_info(code))
-                except Exception as error:
-                    logger.warning("stock detail update failed code=%s error=%s", code, error)
+                if index < DETAIL_BATCH_SIZE:
+                    try:
+                        detail.update(data_provider.get_stock_info(code))
+                    except Exception as error:
+                        logger.warning("stock detail update failed code=%s error=%s", code, error)
                 close = float(frame["close"].iloc[-1])
                 row = {
                     **detail,

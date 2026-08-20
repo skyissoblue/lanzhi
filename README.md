@@ -23,7 +23,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-- Web App：`http://localhost/`
+- Web App：`http://localhost:8080/`
 - FastAPI：`http://localhost:8000/`
 - Swagger API 文档：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`

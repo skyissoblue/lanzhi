@@ -34,8 +34,15 @@ def get_all_stocks() -> pd.DataFrame:
 def get_daily_kline(code: str, start_date: date | None = None) -> pd.DataFrame:
     end = date.today()
     start = start_date or (end - timedelta(days=550))
-    raw = _retry(lambda: _akshare().stock_zh_a_hist(symbol=str(code).zfill(6), period="daily", start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq"))
+    normalized = str(code).zfill(6)
+    try:
+        raw = _retry(lambda: _akshare().stock_zh_a_hist(symbol=normalized, period="daily", start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq"))
+    except Exception:
+        exchange = "sh" if normalized.startswith(("5", "6", "9")) else "bj" if normalized.startswith(("4", "8")) else "sz"
+        raw = _retry(lambda: _akshare().stock_zh_a_daily(symbol=f"{exchange}{normalized}", start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq"))
     frame = raw.rename(columns={"日期":"date", "开盘":"open", "最高":"high", "最低":"low", "收盘":"close", "成交量":"volume", "成交额":"amount"})
+    if "amount" not in frame.columns and {"close", "volume"}.issubset(frame.columns):
+        frame["amount"] = pd.to_numeric(frame["close"], errors="coerce") * pd.to_numeric(frame["volume"], errors="coerce")
     required = ["date", "open", "high", "low", "close", "volume", "amount"]
     if not set(required).issubset(frame.columns):
         raise ValueError(f"AkShare kline for {code} is missing required columns")

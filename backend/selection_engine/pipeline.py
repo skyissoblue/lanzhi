@@ -32,7 +32,7 @@ class MarketDataPipeline:
     def __init__(self, batch_size: int = UPDATE_BATCH_SIZE) -> None:
         self.batch_size = max(batch_size, 1)
 
-    def _state(self) -> dict[str, int]:
+    def _state(self) -> dict[str, Any]:
         ensure_dirs()
         if not STATE_FILE.exists():
             return {"offset": 0}
@@ -41,7 +41,7 @@ class MarketDataPipeline:
         except Exception:
             return {"offset": 0}
 
-    def _save_state(self, state: dict[str, int]) -> None:
+    def _save_state(self, state: dict[str, Any]) -> None:
         temporary = STATE_FILE.with_suffix(".tmp")
         temporary.write_text(json.dumps(state), encoding="utf-8")
         temporary.replace(STATE_FILE)
@@ -66,9 +66,14 @@ class MarketDataPipeline:
         codes = [row["code"] for row in stocks]
         if not codes:
             return [], 0
-        offset = self._state().get("offset", 0) % len(codes)
-        selected = (codes + codes)[offset:offset + min(self.batch_size, len(codes))]
-        return selected, (offset + len(selected)) % len(codes)
+        state = self._state()
+        offset = state.get("offset", 0) % len(codes)
+        retry_limit = min(len(state.get("failed_codes", [])), max(1, self.batch_size // 5))
+        retries = [code for code in state.get("failed_codes", []) if code in codes][:retry_limit]
+        fresh_count = min(self.batch_size - len(retries), len(codes))
+        fresh = (codes + codes)[offset:offset + fresh_count]
+        selected = list(dict.fromkeys(retries + fresh))
+        return selected, (offset + fresh_count) % len(codes)
 
     def update_batch(self) -> dict[str, Any]:
         """Incrementally update a bounded stock batch and its indicators."""
@@ -85,7 +90,11 @@ class MarketDataPipeline:
                 frame = local_store.load(code)
                 if frame.empty:
                     raise ValueError("no local kline data")
-                detail = data_provider.get_stock_info(code)
+                detail = {"code": code, "board": _board(code)}
+                try:
+                    detail.update(data_provider.get_stock_info(code))
+                except Exception as error:
+                    logger.warning("stock detail update failed code=%s error=%s", code, error)
                 close = float(frame["close"].iloc[-1])
                 row = {
                     **detail,
@@ -103,7 +112,7 @@ class MarketDataPipeline:
             time.sleep(REQUEST_DELAY)
         upsert_stocks(updated)
         self.precompute_rps()
-        self._save_state({"offset": next_offset})
+        self._save_state({"offset": next_offset, "failed_codes": failed})
         result = {"selected": len(codes), "updated": len(updated), "failed": len(failed), "failed_codes": failed, "next_offset": next_offset}
         save_update_log("success" if not failed else "partial", result)
         return result

@@ -1,0 +1,116 @@
+"""Progressive stock-selection session using live AkShare data."""
+from __future__ import annotations
+import os
+from copy import deepcopy
+from typing import Any
+from . import data_provider, indicators
+from .cache import create_cache
+from .conditions import COMPARATORS, required
+from .mock_data import generate_mock_market
+
+class SelectionSession:
+    def __init__(self, limit: int | None = None) -> None:
+        self._mock_mode = os.getenv("SELECTION_ENGINE_DATA_MODE", "real").lower() == "mock"
+        if self._mock_mode:
+            stocks = generate_mock_market()
+            self._universe = stocks[:limit] if limit is not None else stocks
+        else:
+            stocks = data_provider.get_all_stocks()
+            if limit is not None:
+                if limit < 0: raise ValueError("limit must be non-negative")
+                stocks = stocks.head(limit)
+            self._universe = stocks.loc[:, ["code", "name"]].to_dict("records")
+        self._conditions: list[dict[str, Any]] = []
+        self._stocks = list(self._universe)
+        self._cache = create_cache()
+        self._all_closes: dict[str, Any] | None = None
+
+    @property
+    def stocks(self) -> list[dict[str, Any]]: return deepcopy(self._stocks)
+
+    @property
+    def conditions(self) -> list[dict[str, Any]]: return deepcopy(self._conditions)
+
+    def apply_condition(self, condition: dict) -> dict:
+        self._validate_condition(condition)
+        before = len(self._stocks)
+        self._stocks = [stock for stock in self._stocks if self._matches(stock, condition)]
+        self._conditions.append(deepcopy(condition))
+        return self._result(before)
+
+    def remove_last(self) -> dict:
+        before = len(self._stocks)
+        if self._conditions:
+            self._conditions.pop(); self._recalculate()
+        return self._result(before)
+
+    def reset(self) -> dict:
+        before = len(self._stocks)
+        self._conditions.clear(); self._stocks = list(self._universe)
+        return self._result(before)
+
+    def _kline(self, code: str): return self._cache.get_or_calc(code, data_provider.get_daily_kline, code)
+    def _info(self, code: str): return self._cache.get_or_calc(code, data_provider.get_stock_info, code)
+    def _indicator(self, code: str, func, *args): return self._cache.get_or_calc(code, func, *args)
+
+    def _get_all_closes(self) -> dict[str, Any]:
+        if self._all_closes is None:
+            self._all_closes = {stock["code"]: self._kline(stock["code"])["close"] for stock in self._universe}
+        return self._all_closes
+
+    def _matches(self, stock: dict[str, Any], condition: dict) -> bool:
+        code, kind = stock["code"], condition["type"]
+        if self._mock_mode:
+            if kind == "industry": return str(required(condition, "value")) in stock["industry"]
+            elif kind == "board": return stock["board"] == str(required(condition, "value"))
+            elif kind == "ma_cross_weekly": return stock["close"] >= stock["ma10_weekly"]
+            elif kind == "ma_deviation_weekly": return abs(stock["close"] - stock["ma10_weekly"]) / stock["ma10_weekly"] * 100 <= float(required(condition, "max_pct"))
+            elif kind in {"rps", "volume_ratio", "market_cap", "pe"}: return self._compare(float(stock[{"rps":"rps_250"}.get(kind, kind)]), condition)
+            elif kind in {"macd_cross", "kdj_cross"}: return False
+        if kind == "industry": return str(required(condition, "value")) in self._info(code)["industry"]
+        elif kind == "board": return self._info(code)["board"] == str(required(condition, "value"))
+        elif kind == "ma_cross_weekly":
+            kline = self._kline(code)
+            return float(kline["close"].iloc[-1]) >= self._indicator(code, indicators.calc_weekly_ma10, kline)
+        elif kind == "ma_deviation_weekly":
+            return abs(self._indicator(code, indicators.calc_ma_deviation_weekly, self._kline(code))) <= float(required(condition, "max_pct"))
+        elif kind == "rps": return self._compare(self._indicator(code, indicators.calc_rps_250, code, self._get_all_closes()), condition)
+        elif kind == "volume_ratio": return self._compare(self._indicator(code, indicators.calc_volume_ratio, self._kline(code)), condition)
+        elif kind == "market_cap":
+            value = self._info(code)["market_cap"]
+            return value is not None and self._compare(float(value), condition)
+        elif kind == "pe":
+            value = self._info(code)["pe"]
+            return value is not None and self._compare(float(value), condition)
+        elif kind == "macd_cross":
+            return self._indicator(code, indicators.calc_macd_cross, self._kline(code))
+        elif kind == "kdj_cross":
+            return self._indicator(code, indicators.calc_kdj_cross, self._kline(code))
+        raise ValueError(f"unsupported condition type: {kind!r}")
+
+    @staticmethod
+    def _compare(actual: float, condition: dict) -> bool:
+        op = str(required(condition, "op"))
+        if op not in COMPARATORS: raise ValueError(f"unsupported comparison operator: {op!r}")
+        return COMPARATORS[op](actual, float(required(condition, "value")))
+
+    @staticmethod
+    def _validate_condition(condition: dict) -> None:
+        if not isinstance(condition, dict): raise TypeError("condition must be a dict")
+        kind = condition.get("type")
+        if kind not in {"industry", "board", "ma_cross_weekly", "ma_deviation_weekly", "rps", "volume_ratio", "market_cap", "pe", "macd_cross", "kdj_cross"}: raise ValueError(f"unsupported condition type: {kind!r}")
+        if kind in {"industry", "board"}: required(condition, "value")
+        elif kind == "ma_deviation_weekly":
+            if float(required(condition, "max_pct")) < 0: raise ValueError("max_pct must be non-negative")
+        elif kind in {"rps", "volume_ratio", "market_cap", "pe"}:
+            op = str(required(condition, "op")); required(condition, "value")
+            if op not in COMPARATORS: raise ValueError(f"unsupported comparison operator: {op!r}")
+
+    def _recalculate(self) -> None:
+        stocks = list(self._universe)
+        for condition in self._conditions: stocks = [stock for stock in stocks if self._matches(stock, condition)]
+        self._stocks = stocks
+
+    def _result(self, before: int) -> dict:
+        after = len(self._stocks)
+        return {"before":before, "after":after, "removed":max(before-after, 0), "stocks":self.stocks}

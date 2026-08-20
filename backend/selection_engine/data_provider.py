@@ -1,0 +1,50 @@
+"""Real A-share data access backed by AkShare."""
+from __future__ import annotations
+from datetime import date, timedelta
+from typing import Any
+import pandas as pd
+
+def _akshare():
+    import akshare as ak
+    return ak
+
+def get_all_stocks() -> pd.DataFrame:
+    raw = _akshare().stock_info_a_code_name()
+    frame = raw.rename(columns={"代码": "code", "名称": "name"})
+    if not {"code", "name"}.issubset(frame.columns):
+        raise ValueError("AkShare stock list is missing code/name columns")
+    result = frame.loc[:, ["code", "name"]].copy()
+    result["code"] = result["code"].astype(str).str.strip().str.zfill(6)
+    result["name"] = result["name"].astype(str).str.strip()
+    return result.drop_duplicates("code").reset_index(drop=True)
+
+def get_daily_kline(code: str) -> pd.DataFrame:
+    end = date.today()
+    raw = _akshare().stock_zh_a_hist(symbol=str(code).zfill(6), period="daily", start_date=(end - timedelta(days=550)).strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"), adjust="qfq")
+    frame = raw.rename(columns={"日期":"date", "开盘":"open", "最高":"high", "最低":"low", "收盘":"close", "成交量":"volume", "成交额":"amount"})
+    required = ["date", "open", "high", "low", "close", "volume", "amount"]
+    if not set(required).issubset(frame.columns):
+        raise ValueError(f"AkShare kline for {code} is missing required columns")
+    result = frame.loc[:, required].copy()
+    result["date"] = pd.to_datetime(result["date"], errors="coerce")
+    for column in required[1:]:
+        result[column] = pd.to_numeric(result[column], errors="coerce")
+    return result.dropna(subset=required).sort_values("date").reset_index(drop=True)
+
+def _board_for_code(code: str) -> str:
+    if code.startswith(("300", "301")): return "创业板"
+    if code.startswith(("688", "689")): return "科创板"
+    if code.startswith(("4", "8", "92")): return "北交所"
+    return "主板"
+
+def _number(value: Any) -> float | None:
+    number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    return None if pd.isna(number) else float(number)
+
+def get_stock_info(code: str) -> dict[str, Any]:
+    normalized = str(code).zfill(6)
+    raw = _akshare().stock_individual_info_em(symbol=normalized)
+    if not {"item", "value"}.issubset(raw.columns):
+        raise ValueError(f"AkShare stock info for {code} is missing item/value columns")
+    values = dict(zip(raw["item"].astype(str), raw["value"], strict=False))
+    return {"code":normalized, "name":str(values.get("股票简称", "")), "industry":str(values.get("行业", "")), "board":_board_for_code(normalized), "market_cap":_number(values.get("总市值")), "pe":_number(values.get("市盈率(TTM)", values.get("市盈率(静)")))}

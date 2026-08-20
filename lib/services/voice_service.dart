@@ -1,8 +1,10 @@
-import 'dart:io';
-
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-import 'package:whisper_kit/whisper_kit.dart';
+
+import 'voice_transcriber.dart';
+
+export 'voice_transcriber.dart' show VoiceTranscriber;
 
 abstract interface class AudioCapture {
   Future<void> start(String path);
@@ -42,33 +44,10 @@ class RecordAudioCapture implements AudioCapture {
   Future<void> dispose() => _recorder.dispose();
 }
 
-abstract interface class VoiceTranscriber {
-  Future<String> transcribe(String audioPath);
-}
-
-class WhisperTinyTranscriber implements VoiceTranscriber {
-  WhisperTinyTranscriber({Whisper? whisper})
-    : _whisper = whisper ?? const Whisper(model: WhisperModel.tiny);
-
-  final Whisper _whisper;
-
-  @override
-  Future<String> transcribe(String audioPath) async {
-    final result = await _whisper.transcribe(
-      transcribeRequest: TranscribeRequest(
-        audio: audioPath,
-        language: 'zh',
-        isNoTimestamps: true,
-      ),
-    );
-    return result.text.trim();
-  }
-}
-
 class VoiceService {
   VoiceService({AudioCapture? capture, VoiceTranscriber? transcriber})
     : _capture = capture ?? RecordAudioCapture(),
-      _transcriber = transcriber ?? WhisperTinyTranscriber();
+      _transcriber = transcriber ?? createDefaultTranscriber();
 
   final AudioCapture _capture;
   final VoiceTranscriber _transcriber;
@@ -76,8 +55,10 @@ class VoiceService {
 
   Future<void> startRecording() async {
     final directory = await getTemporaryDirectory();
-    final path =
-        '${directory.path}${Platform.pathSeparator}voice_${DateTime.now().millisecondsSinceEpoch}.wav';
+    final path = p.join(
+      directory.path,
+      'voice_${DateTime.now().millisecondsSinceEpoch}.wav',
+    );
     _recordingPath = path;
     await _capture.start(path);
   }

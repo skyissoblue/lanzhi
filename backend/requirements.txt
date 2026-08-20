@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+akshare
+pandas
+numpy
+pytest
+httpx
+openai
+redis

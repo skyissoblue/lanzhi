@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Literal
 
 from openai import OpenAI
@@ -15,6 +16,65 @@ class ParsedCondition(BaseModel):
     action: Literal["add", "remove_last", "reset", "error"]
     condition: dict[str, Any] | None = None
     message: str | None = None
+
+
+def _comparison(text: str) -> tuple[str, float] | None:
+    match = re.search(r"(大于等于|不小于|至少|>=|大于|超过|高于|>|小于等于|不大于|至多|<=|小于|低于|<)\s*(\d+(?:\.\d+)?)", text)
+    if not match:
+        return None
+    operators = {
+        "大于等于": ">=", "不小于": ">=", "至少": ">=", ">=": ">=",
+        "大于": ">", "超过": ">", "高于": ">", ">": ">",
+        "小于等于": "<=", "不大于": "<=", "至多": "<=", "<=": "<=",
+        "小于": "<", "低于": "<", "<": "<",
+    }
+    value = float(match.group(2))
+    return operators[match.group(1)], int(value) if value.is_integer() else value
+
+
+def _parse_locally(text: str) -> dict | None:
+    normalized = re.sub(r"[，。！？、\s]", "", text).lower()
+    if any(word in normalized for word in ("撤销", "退回", "上一步", "删掉最后")):
+        return {"action": "remove_last"}
+    if any(word in normalized for word in ("重置", "清空", "重新开始", "恢复全市场")):
+        return {"action": "reset"}
+    if "站上10周线" in normalized or "站上十周线" in normalized:
+        return {"action": "add", "condition": {"type": "ma_cross_weekly"}}
+    deviation = re.search(r"(?:偏离|乖离).{0,6}?(\d+(?:\.\d+)?)%?", normalized)
+    if deviation and ("周线" in normalized or "10周" in normalized or "十周" in normalized):
+        return {"action": "add", "condition": {"type": "ma_deviation_weekly", "max_pct": float(deviation.group(1))}}
+
+    comparison = _comparison(normalized)
+    if "rps" in normalized and comparison:
+        op, value = comparison
+        return {"action": "add", "condition": {"type": "rps", "op": op, "value": value}}
+    if any(word in normalized for word in ("量比", "成交量")):
+        op, value = comparison or (">", 1.5)
+        return {"action": "add", "condition": {"type": "volume_ratio", "op": op, "value": value}}
+    if "市值" in normalized and comparison:
+        op, value = comparison
+        multiplier = 100000000 if "亿" in normalized else 1
+        return {"action": "add", "condition": {"type": "market_cap", "op": op, "value": value * multiplier}}
+    if "pe" in normalized and comparison:
+        op, value = comparison
+        return {"action": "add", "condition": {"type": "pe", "op": op, "value": value}}
+    if "macd" in normalized and any(word in normalized for word in ("金叉", "上穿")):
+        return {"action": "add", "condition": {"type": "macd_cross"}}
+    if "kdj" in normalized and any(word in normalized for word in ("金叉", "上穿")):
+        return {"action": "add", "condition": {"type": "kdj_cross"}}
+
+    boards = ("创业板", "科创板", "主板", "北交所")
+    for board in boards:
+        if board in normalized:
+            return {"action": "add", "condition": {"type": "board", "value": board}}
+    industry = re.search(r"([\u4e00-\u9fff]{2,8})(?:行业|股)", normalized)
+    if industry:
+        value = industry.group(1)
+        for prefix in ("选出", "选择", "我要", "再加个", "再加"):
+            value = value.removeprefix(prefix)
+        if value:
+            return {"action": "add", "condition": {"type": "industry", "value": value}}
+    return None
 
 
 def parse_condition(
@@ -48,4 +108,7 @@ def parse_condition(
             raise TypeError("unexpected OpenAI response type")
         return result
     except Exception as error:
+        fallback = _parse_locally(text)
+        if fallback is not None:
+            return fallback
         return {"action": "error", "message": str(error)}

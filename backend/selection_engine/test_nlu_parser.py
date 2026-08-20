@@ -69,5 +69,20 @@ def test_api_failure_returns_error(monkeypatch):
     def fail():
         raise RuntimeError("service unavailable")
     monkeypatch.setattr(nlu_parser, "OpenAI", fail)
-    result = nlu_parser.parse_condition("科技股")
+    result = nlu_parser.parse_condition("无法识别的复杂条件")
     assert result == {"action": "error", "message": "service unavailable"}
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("科技股", {"action": "add", "condition": {"type": "industry", "value": "科技"}}),
+        ("站上10周线", {"action": "add", "condition": {"type": "ma_cross_weekly"}}),
+        ("RPS大于87", {"action": "add", "condition": {"type": "rps", "op": ">", "value": 87}}),
+        ("再加个成交量放大的", {"action": "add", "condition": {"type": "volume_ratio", "op": ">", "value": 1.5}}),
+        ("撤销上一步", {"action": "remove_last"}),
+    ],
+)
+def test_local_fallback_when_openai_unavailable(monkeypatch, text, expected):
+    monkeypatch.setattr(nlu_parser, "OpenAI", lambda: (_ for _ in ()).throw(ConnectionError("offline")))
+    assert nlu_parser.parse_condition(text) == expected

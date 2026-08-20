@@ -23,6 +23,8 @@ docker compose up -d --build
 docker compose ps
 ```
 
+Compose 默认使用已验证的 `build/web` 产物构建轻量 Nginx 镜像，适合网络受限服务器。需要在容器内重新编译 Flutter Web 时，可移除 `frontend.build.target: prebuilt`，Dockerfile 会执行完整 Flutter 多阶段构建。
+
 - Web App：`http://localhost:8080/`
 - FastAPI：`http://localhost:8000/`
 - Swagger API 文档：`http://localhost:8000/docs`

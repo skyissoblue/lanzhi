@@ -1,7 +1,9 @@
 .git/
 .github/
 .dart_tool/
-build/
+build/*
+!build/web/
+!build/web/**
 dist/
 backend/
 .env

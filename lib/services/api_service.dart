@@ -11,6 +11,8 @@ class StepResult {
     required this.stocks,
     this.action,
     this.condition,
+    this.conditions = const [],
+    this.appliedConditions,
     this.message,
   });
 
@@ -20,6 +22,8 @@ class StepResult {
   final List<Stock> stocks;
   final String? action;
   final Condition? condition;
+  final List<Condition> conditions;
+  final List<Condition>? appliedConditions;
   final String? message;
 
   factory StepResult.fromJson(Map<String, dynamic> json) => StepResult(
@@ -34,6 +38,16 @@ class StepResult {
         ? Condition.fromJson(
             Map<String, dynamic>.from(json['condition'] as Map),
           )
+        : null,
+    conditions: (json['conditions'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((item) => Condition.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    appliedConditions: json.containsKey('applied_conditions')
+        ? (json['applied_conditions'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map((item) => Condition.fromJson(Map<String, dynamic>.from(item)))
+              .toList()
         : null,
     message: json['message']?.toString(),
   );
@@ -94,4 +108,10 @@ class ApiService {
     );
     return StepResult.fromJson(response.data ?? const {});
   }
+
+  bool isSessionMissing(Object error) =>
+      error is DioException &&
+      error.response?.statusCode == 404 &&
+      (error.response?.data is! Map ||
+          (error.response?.data as Map)['detail'] == 'session not found');
 }

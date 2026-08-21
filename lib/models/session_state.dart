@@ -79,23 +79,37 @@ class SessionController extends StateNotifier<SessionState> {
   }
 
   Future<void> submitText(String text) async {
-    final sessionId = state.sessionId;
+    var sessionId = state.sessionId;
     if (sessionId == null || text.trim().isEmpty || state.loading) return;
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final result = await _api.parseAndApply(sessionId, text.trim());
+      StepResult result;
+      try {
+        result = await _api.parseAndApply(sessionId, text.trim());
+      } catch (error) {
+        if (!_api.isSessionMissing(error)) rethrow;
+        sessionId = await _restoreSession();
+        result = await _api.parseAndApply(sessionId, text.trim());
+      }
       if (result.action == 'error') {
         throw StateError(result.message ?? '条件解析失败');
       }
-      final conditions = [...state.conditions];
-      if (result.action == 'add' && result.condition != null) {
-        conditions.add(result.condition!);
-      } else if (result.action == 'remove_last' && conditions.isNotEmpty) {
+      final conditions = result.appliedConditions ?? [...state.conditions];
+      if (result.appliedConditions == null && result.action == 'add') {
+        if (result.conditions.isNotEmpty) {
+          conditions.addAll(result.conditions);
+        } else if (result.condition != null) {
+          conditions.add(result.condition!);
+        }
+      } else if (result.appliedConditions == null &&
+          result.action == 'remove_last' &&
+          conditions.isNotEmpty) {
         conditions.removeLast();
-      } else if (result.action == 'reset') {
+      } else if (result.appliedConditions == null && result.action == 'reset') {
         conditions.clear();
       }
       state = state.copyWith(
+        sessionId: sessionId,
         total: result.after,
         stocks: result.stocks,
         conditions: conditions,
@@ -107,8 +121,16 @@ class SessionController extends StateNotifier<SessionState> {
     }
   }
 
+  Future<String> _restoreSession() async {
+    final sessionId = await _api.createSession();
+    for (final condition in state.conditions) {
+      await _api.applyCondition(sessionId, condition);
+    }
+    return sessionId;
+  }
+
   Future<void> removeCondition(int index) async {
-    final sessionId = state.sessionId;
+    var sessionId = state.sessionId;
     if (sessionId == null || index < 0 || index >= state.conditions.length) {
       return;
     }
@@ -116,15 +138,16 @@ class SessionController extends StateNotifier<SessionState> {
     try {
       final original = [...state.conditions];
       StepResult? result;
-      for (var cursor = original.length - 1; cursor >= index; cursor--) {
-        result = await _api.removeLast(sessionId);
-      }
-      final tail = original.skip(index + 1);
-      for (final condition in tail) {
-        result = await _api.applyCondition(sessionId, condition);
+      try {
+        result = await _removeAt(sessionId, index, original);
+      } catch (error) {
+        if (!_api.isSessionMissing(error)) rethrow;
+        sessionId = await _restoreSession();
+        result = await _removeAt(sessionId, index, original);
       }
       final remaining = [...original]..removeAt(index);
       state = state.copyWith(
+        sessionId: sessionId,
         total: result?.after ?? state.total,
         stocks: result?.stocks ?? state.stocks,
         conditions: remaining,
@@ -134,5 +157,20 @@ class SessionController extends StateNotifier<SessionState> {
     } catch (error) {
       state = state.copyWith(loading: false, error: error.toString());
     }
+  }
+
+  Future<StepResult?> _removeAt(
+    String sessionId,
+    int index,
+    List<Condition> original,
+  ) async {
+    StepResult? result;
+    for (var cursor = original.length - 1; cursor >= index; cursor--) {
+      result = await _api.removeLast(sessionId);
+    }
+    for (final condition in original.skip(index + 1)) {
+      result = await _api.applyCondition(sessionId, condition);
+    }
+    return result;
   }
 }

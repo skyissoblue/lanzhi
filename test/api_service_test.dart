@@ -40,4 +40,26 @@ void main() {
     expect(result.appliedConditions!.last.name, 'roe');
     expect(result.appliedConditions!.last.extra['period'], 'ttm');
   });
+
+  test('renders monthly and yearly condition labels', () {
+    final monthly = StepResult.fromJson({
+      'condition': {
+        'type': 'ma_cross',
+        'period': 'monthly',
+        'ma': 5,
+        'op': '>=',
+      },
+    }).condition!;
+    final yearly = StepResult.fromJson({
+      'condition': {
+        'type': 'ma_deviation',
+        'period': 'yearly',
+        'ma': 10,
+        'max_pct': 8,
+      },
+    }).condition!;
+
+    expect(monthly.label, contains('月线'));
+    expect(yearly.label, contains('年线'));
+  });
 }

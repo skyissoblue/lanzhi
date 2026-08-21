@@ -67,13 +67,26 @@ class Condition {
       ].whereType<String>().join(' ');
     }
     if (type == 'ma_cross') {
-      final period = extra['period'] == 'weekly' ? '周' : '日';
+      const periodNames = {
+        'daily': '日',
+        'weekly': '周',
+        'monthly': '月',
+        'yearly': '年',
+      };
+      final period = periodNames[extra['period']] ?? '日';
       return extra['ma_fast'] != null
           ? 'MA${extra['ma_fast']} ${extra['cross'] == 'death' ? '死叉' : '金叉'} MA${extra['ma_slow']}'
           : '${extra['ma']}$period线 ${op ?? '>='}';
     }
     if (type == 'ma_deviation') {
-      return '偏离MA${extra['ma']} ≤ ${extra['max_pct']}%';
+      const periodNames = {
+        'daily': '日',
+        'weekly': '周',
+        'monthly': '月',
+        'yearly': '年',
+      };
+      final period = periodNames[extra['period']] ?? '日';
+      return '偏离${extra['ma']}$period线 ≤ ${extra['max_pct']}%';
     }
     return [
       names[type] ?? type,

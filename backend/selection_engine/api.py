@@ -49,6 +49,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/factors")
+def factors(kind: str | None = Query(default=None, pattern="^(ta|alpha|pattern)$")) -> dict[str, Any]:
+    from factor_system.factor_lib.registry import auto_discover, list_all
+    auto_discover()
+    items = [item for item in list_all() if kind is None or item["kind"] == kind]
+    return {"total": len(items), "factors": items}
+
+
 def _get_session(session_id: str) -> SelectionSession:
     session = session_store.get(session_id)
     if session is None:

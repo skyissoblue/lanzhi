@@ -89,3 +89,20 @@ curl -X DELETE http://localhost:8000/api/session/SESSION_ID/condition/last
 - 不要提交 `.env`、OpenAI Key、服务器密码或 Android 签名文件。
 - 当前 Compose 暴露 8000 端口以便调试；正式环境可移除该端口映射，仅由 Nginx 访问后端。
 - Debug APK 只用于测试，上架前应配置固定 applicationId、发布签名和 HTTPS。
+# Alpha 因子系统
+
+后端内置插件化 `factor_system`，从 `/data/kline/*.parquet` 本地计算并写入 Redis `stock:{code}`。当前注册 206 个因子：150 个 TA-Lib 技术/蜡烛图指标、23 个 Alpha101/191 量价因子、33 个结构形态因子。
+
+```bash
+docker-compose exec backend python -m factor_system.main list
+docker-compose exec backend python -m factor_system.main run --kind alpha
+docker-compose exec backend python -m factor_system.main run --codes 000001,000002
+docker-compose exec backend python -m factor_system.main status
+docker-compose exec backend python -m factor_system.main verify
+```
+
+行情定时任务每次更新完一批 K 线后会自动重算该批股票的全部因子。`GET /api/factors` 可查看因子目录，通用筛选条件格式为：
+
+```json
+{"type":"factor","name":"alpha_101","op":">","value":0.5}
+```

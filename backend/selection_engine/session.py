@@ -9,6 +9,14 @@ from .cache import create_cache
 from .conditions import COMPARATORS, required
 from .mock_data import generate_mock_market
 
+try:
+    from factor_system import redis_store as factor_store
+    from factor_system.factor_lib.registry import auto_discover as discover_factors, get as get_factor_definition
+except ImportError:
+    factor_store = None
+    discover_factors = None
+    get_factor_definition = None
+
 class SelectionSession:
     def __init__(self, limit: int | None = None) -> None:
         self._data_mode = os.getenv("SELECTION_ENGINE_DATA_MODE", "real").lower()
@@ -30,6 +38,7 @@ class SelectionSession:
         self._stocks = list(self._universe)
         self._cache = create_cache()
         self._all_closes: dict[str, Any] | None = None
+        self._factor_values: dict[str, dict[str, Any]] = {}
 
     @property
     def stocks(self) -> list[dict[str, Any]]: return deepcopy(self._stocks)
@@ -39,6 +48,10 @@ class SelectionSession:
 
     def apply_condition(self, condition: dict) -> dict:
         self._validate_condition(condition)
+        if condition.get("type") == "factor" and self._data_mode == "local" and factor_store is not None:
+            name = str(condition["name"])
+            if name not in self._factor_values:
+                self._factor_values[name] = factor_store.batch_get_factor([stock["code"] for stock in self._universe], name)
         before = len(self._stocks)
         self._stocks = [stock for stock in self._stocks if self._matches(stock, condition)]
         self._conditions.append(deepcopy(condition))
@@ -73,6 +86,7 @@ class SelectionSession:
             elif kind == "ma_deviation_weekly": return abs(stock["close"] - stock["ma10_weekly"]) / stock["ma10_weekly"] * 100 <= float(required(condition, "max_pct"))
             elif kind in {"rps", "volume_ratio", "market_cap", "pe"}: return self._compare(float(stock[{"rps":"rps_250"}.get(kind, kind)]), condition)
             elif kind in {"macd_cross", "kdj_cross"}: return False
+            elif kind == "factor": return False
         if self._data_mode == "local":
             if kind == "industry": return str(required(condition, "value")) in str(stock.get("industry") or "")
             elif kind == "board": return stock.get("board") == str(required(condition, "value"))
@@ -85,6 +99,15 @@ class SelectionSession:
             elif kind == "market_cap": return self._stored_compare(stock, "market_cap", condition)
             elif kind == "pe": return self._stored_compare(stock, "pe", condition)
             elif kind in {"macd_cross", "kdj_cross"}: return False
+            elif kind == "factor":
+                if factor_store is None: return False
+                name = str(required(condition, "name"))
+                value = self._factor_values.get(name, {}).get(code)
+                if value is None and name not in self._factor_values:
+                    value = factor_store.get_factor(code, name)
+                if value is None: return False
+                if "op" not in condition: return bool(value) == bool(condition.get("value", True))
+                return self._compare(float(value), condition)
         if kind == "industry": return str(required(condition, "value")) in self._info(code)["industry"]
         elif kind == "board": return self._info(code)["board"] == str(required(condition, "value"))
         elif kind == "ma_cross_weekly":
@@ -104,6 +127,8 @@ class SelectionSession:
             return self._indicator(code, indicators.calc_macd_cross, self._kline(code))
         elif kind == "kdj_cross":
             return self._indicator(code, indicators.calc_kdj_cross, self._kline(code))
+        elif kind == "factor":
+            raise ValueError("factor conditions require local data mode")
         raise ValueError(f"unsupported condition type: {kind!r}")
 
     @staticmethod
@@ -124,13 +149,22 @@ class SelectionSession:
     def _validate_condition(condition: dict) -> None:
         if not isinstance(condition, dict): raise TypeError("condition must be a dict")
         kind = condition.get("type")
-        if kind not in {"industry", "board", "ma_cross_weekly", "ma_deviation_weekly", "rps", "volume_ratio", "market_cap", "pe", "macd_cross", "kdj_cross"}: raise ValueError(f"unsupported condition type: {kind!r}")
+        if kind not in {"industry", "board", "ma_cross_weekly", "ma_deviation_weekly", "rps", "volume_ratio", "market_cap", "pe", "macd_cross", "kdj_cross", "factor"}: raise ValueError(f"unsupported condition type: {kind!r}")
         if kind in {"industry", "board"}: required(condition, "value")
         elif kind == "ma_deviation_weekly":
             if float(required(condition, "max_pct")) < 0: raise ValueError("max_pct must be non-negative")
         elif kind in {"rps", "volume_ratio", "market_cap", "pe"}:
             op = str(required(condition, "op")); required(condition, "value")
             if op not in COMPARATORS: raise ValueError(f"unsupported comparison operator: {op!r}")
+        elif kind == "factor":
+            name = str(required(condition, "name"))
+            if discover_factors is None or get_factor_definition is None:
+                raise ValueError("factor system is unavailable")
+            discover_factors()
+            if get_factor_definition(name) is None: raise ValueError(f"unknown factor: {name}")
+            if "op" in condition:
+                op = str(condition["op"]); required(condition, "value")
+                if op not in COMPARATORS: raise ValueError(f"unsupported comparison operator: {op!r}")
 
     def _recalculate(self) -> None:
         stocks = list(self._universe)

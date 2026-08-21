@@ -62,6 +62,28 @@ def _parse_locally(text: str) -> dict | None:
         return {"action": "add", "condition": {"type": "macd_cross"}}
     if "kdj" in normalized and any(word in normalized for word in ("金叉", "上穿")):
         return {"action": "add", "condition": {"type": "kdj_cross"}}
+    factor_match = re.search(r"((?:alpha_?|alpha191_?)\d{1,3}|[a-z][a-z0-9_]+)", normalized)
+    if factor_match and comparison:
+        op, value = comparison
+        raw_name = factor_match.group(1)
+        if raw_name.startswith("alpha191"):
+            digits = re.search(r"\d+$", raw_name).group()
+            name = f"alpha191_{int(digits):02d}"
+        elif raw_name.startswith("alpha"):
+            digits = re.search(r"\d+$", raw_name).group()
+            name = f"alpha_{int(digits):03d}"
+        else:
+            name = raw_name
+        return {"action": "add", "condition": {"type": "factor", "name": name, "op": op, "value": value}}
+    aliases = {
+        "多头排列": "ma_bull_alignment", "空头排列": "ma_bear_alignment", "均线粘合": "ma_convergence",
+        "macd金叉": "macd_golden_cross", "macd死叉": "macd_dead_cross", "kdj超买": "kdj_overbought",
+        "kdj超卖": "kdj_oversold", "布林突破上轨": "boll_break_upper", "放量长阳": "big_yang",
+        "20日新高": "new_high_20d", "二十日新高": "new_high_20d", "低波动": "low_volatility",
+    }
+    for phrase, name in aliases.items():
+        if phrase in normalized:
+            return {"action": "add", "condition": {"type": "factor", "name": name, "value": True}}
 
     boards = ("创业板", "科创板", "主板", "北交所")
     for board in boards:

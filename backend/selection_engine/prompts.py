@@ -17,6 +17,7 @@ SUPPORTED_TYPES = [
     "pe",
     "macd_cross",
     "kdj_cross",
+    "factor",
 ]
 
 
@@ -40,6 +41,7 @@ def build_system_prompt(
 5. “站上10周线”对应 ma_cross_weekly，不需要 op 或 value。
 6. “成交量放大”默认对应 volume_ratio > 1.5；用户给出倍数时采用用户数值。
 7. 无法确定时返回 action=error，并在 message 中说明原因。
+8. 通用因子使用 {{"type":"factor","name":"alpha_101","op":">","value":0.5}}；布尔形态因子可省略 op，value=true。
 
 输出示例：
 {{"action":"add","condition":{{"type":"industry","value":"科技"}},"message":null}}

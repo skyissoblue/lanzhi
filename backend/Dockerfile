@@ -12,6 +12,7 @@ COPY requirements.txt pyproject.toml ./
 RUN pip install --retries 10 -r requirements.txt
 
 COPY selection_engine ./selection_engine
+COPY factor_system ./factor_system
 
 EXPOSE 8000
 

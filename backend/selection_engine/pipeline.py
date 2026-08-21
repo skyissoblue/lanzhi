@@ -114,8 +114,15 @@ class MarketDataPipeline:
             time.sleep(REQUEST_DELAY)
         upsert_stocks(updated)
         self.precompute_rps()
+        factor_stats = None
+        if updated:
+            try:
+                from factor_system.precompute import run_all as run_factors
+                factor_stats = run_factors(codes=[row["code"] for row in updated])
+            except Exception as error:
+                logger.warning("factor precompute failed error=%s", error)
         self._save_state({"offset": next_offset, "failed_codes": failed})
-        result = {"selected": len(codes), "updated": len(updated), "failed": len(failed), "failed_codes": failed, "next_offset": next_offset}
+        result = {"selected": len(codes), "updated": len(updated), "failed": len(failed), "failed_codes": failed, "next_offset": next_offset, "factors": factor_stats}
         save_update_log("success" if not failed else "partial", result)
         return result
 

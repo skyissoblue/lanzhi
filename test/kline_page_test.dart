@@ -12,12 +12,32 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('kline-chart')), findsOneWidget);
+    expect(find.byKey(const ValueKey('kline-chart-daily')), findsOneWidget);
     expect(find.textContaining('000001'), findsOneWidget);
     final volume = tester.widget<Switch>(
       find.byKey(const ValueKey('indicator-成交量')),
     );
     expect(volume.value, isTrue);
+  });
+
+  testWidgets('K线支持日周月年周期切换', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: KlinePage(stockCode: '000001')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('日K'), findsOneWidget);
+    expect(find.text('周K'), findsOneWidget);
+    expect(find.text('月K'), findsOneWidget);
+    expect(find.text('年K'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('period-monthly')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kline-chart-monthly')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('period-yearly')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kline-chart-yearly')), findsOneWidget);
   });
 
   testWidgets('指标开关可同时启用 MACD KDJ RSI', (tester) async {

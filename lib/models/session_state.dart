@@ -2,44 +2,53 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/api_service.dart';
 import '../services/voice_service.dart';
-import 'condition.dart';
-import 'stock.dart';
+import 'selection_combo.dart';
 
-class SessionState {
-  const SessionState({
-    this.sessionId,
-    this.total = 0,
-    this.stocks = const [],
-    this.conditions = const [],
+class ComboState {
+  const ComboState({
+    this.combos = const [],
+    this.currentSessionId,
     this.loading = false,
     this.error,
+    this.lastBefore,
+    this.lastRemoved,
     this.revision = 0,
   });
-
-  final String? sessionId;
-  final int total;
-  final List<Stock> stocks;
-  final List<Condition> conditions;
+  final List<SelectionCombo> combos;
+  final String? currentSessionId;
   final bool loading;
   final String? error;
+  final int? lastBefore;
+  final int? lastRemoved;
   final int revision;
 
-  SessionState copyWith({
-    String? sessionId,
-    int? total,
-    List<Stock>? stocks,
-    List<Condition>? conditions,
+  SelectionCombo? get current {
+    for (final combo in combos) {
+      if (combo.sessionId == currentSessionId) return combo;
+    }
+    return null;
+  }
+
+  ComboState copyWith({
+    List<SelectionCombo>? combos,
+    String? currentSessionId,
+    bool clearCurrent = false,
     bool? loading,
     String? error,
     bool clearError = false,
+    int? lastBefore,
+    int? lastRemoved,
+    bool clearStats = false,
     int? revision,
-  }) => SessionState(
-    sessionId: sessionId ?? this.sessionId,
-    total: total ?? this.total,
-    stocks: stocks ?? this.stocks,
-    conditions: conditions ?? this.conditions,
+  }) => ComboState(
+    combos: combos ?? this.combos,
+    currentSessionId: clearCurrent
+        ? null
+        : currentSessionId ?? this.currentSessionId,
     loading: loading ?? this.loading,
     error: clearError ? null : error ?? this.error,
+    lastBefore: clearStats ? null : lastBefore ?? this.lastBefore,
+    lastRemoved: clearStats ? null : lastRemoved ?? this.lastRemoved,
     revision: revision ?? this.revision,
   );
 }
@@ -50,127 +59,156 @@ final voiceServiceProvider = Provider<VoiceService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
-
-final sessionProvider = StateNotifierProvider<SessionController, SessionState>(
-  (ref) => SessionController(ref.read(apiServiceProvider)),
+final sessionProvider = StateNotifierProvider<ComboController, ComboState>(
+  (ref) => ComboController(ref.read(apiServiceProvider)),
 );
 
-class SessionController extends StateNotifier<SessionState> {
-  SessionController(this._api) : super(const SessionState());
-
+class ComboController extends StateNotifier<ComboState> {
+  ComboController(this._api) : super(const ComboState());
   final ApiService _api;
 
   Future<void> initialize() async {
-    if (state.loading || state.sessionId != null) return;
-    state = state.copyWith(loading: true, clearError: true);
-    try {
-      final sessionId = await _api.createSession();
-      final stocks = await _api.getStocks(sessionId, 1, 100);
+    if (state.loading || state.currentSessionId != null) return;
+    await _guard(() async {
+      var combos = await _api.getSessions();
+      if (combos.isEmpty) combos = [await _api.createSession('组合1')];
       state = state.copyWith(
-        sessionId: sessionId,
-        total: _api.lastSessionTotal,
-        stocks: stocks,
-        loading: false,
-        revision: state.revision + 1,
+        combos: combos,
+        currentSessionId: combos.first.sessionId,
       );
-    } catch (error) {
-      state = state.copyWith(loading: false, error: error.toString());
-    }
+      await _loadCurrent();
+    });
   }
 
-  Future<void> submitText(String text) async {
-    var sessionId = state.sessionId;
-    if (sessionId == null || text.trim().isEmpty || state.loading) return;
-    state = state.copyWith(loading: true, clearError: true);
-    try {
-      StepResult result;
-      try {
-        result = await _api.parseAndApply(sessionId, text.trim());
-      } catch (error) {
-        if (!_api.isSessionMissing(error)) rethrow;
-        sessionId = await _restoreSession();
-        result = await _api.parseAndApply(sessionId, text.trim());
-      }
-      if (result.action == 'error') {
-        throw StateError(result.message ?? '条件解析失败');
-      }
-      final conditions = result.appliedConditions ?? [...state.conditions];
-      if (result.appliedConditions == null && result.action == 'add') {
-        if (result.conditions.isNotEmpty) {
-          conditions.addAll(result.conditions);
-        } else if (result.condition != null) {
-          conditions.add(result.condition!);
-        }
-      } else if (result.appliedConditions == null &&
-          result.action == 'remove_last' &&
-          conditions.isNotEmpty) {
-        conditions.removeLast();
-      } else if (result.appliedConditions == null && result.action == 'reset') {
-        conditions.clear();
-      }
-      state = state.copyWith(
-        sessionId: sessionId,
-        total: result.after,
-        stocks: result.stocks,
+  Future<void> createCombo(String name) => _guard(() async {
+    final combo = await _api.createSession(name.trim());
+    state = state.copyWith(
+      combos: [...state.combos, combo],
+      currentSessionId: combo.sessionId,
+      clearStats: true,
+    );
+  });
+
+  Future<void> switchCombo(String sessionId) => _guard(() async {
+    state = state.copyWith(currentSessionId: sessionId, clearStats: true);
+    await _loadCurrent();
+  });
+
+  Future<void> submitText(String text) => _guard(() async {
+    final combo = state.current;
+    if (combo == null || text.trim().isEmpty) return;
+    final result = await _api.parseAndApply(combo.sessionId, text.trim());
+    if (result.action == 'error') throw StateError(result.message ?? '条件解析失败');
+    final conditions =
+        result.appliedConditions ??
+        [
+          ...combo.conditions,
+          ...result.conditions,
+          if (result.conditions.isEmpty && result.condition != null)
+            result.condition!,
+        ];
+    _replaceCurrent(
+      combo.copyWith(
         conditions: conditions,
-        loading: false,
-        revision: state.revision + 1,
-      );
-    } catch (error) {
-      state = state.copyWith(loading: false, error: error.toString());
-    }
+        currentCount: result.after,
+        stocks: conditions.isEmpty ? const [] : result.stocks,
+      ),
+      before: result.before,
+      removed: result.removed,
+    );
+  });
+
+  Future<void> removeCondition(int index) => _guard(() async {
+    final combo = state.current;
+    if (combo == null || index < 0 || index >= combo.conditions.length) return;
+    final result = await _api.removeCondition(combo.sessionId, index);
+    final conditions = [...combo.conditions]..removeAt(index);
+    _replaceCurrent(
+      combo.copyWith(
+        conditions: conditions,
+        currentCount: result.after,
+        stocks: conditions.isEmpty ? const [] : result.stocks,
+      ),
+      before: result.before,
+      removed: result.removed,
+    );
+  });
+
+  Future<void> resetCombo() => _guard(() async {
+    final combo = state.current;
+    if (combo == null) return;
+    await _api.resetSession(combo.sessionId);
+    _replaceCurrent(
+      combo.copyWith(
+        conditions: const [],
+        currentCount: combo.total,
+        stocks: const [],
+      ),
+      clearStats: true,
+    );
+  });
+
+  Future<void> renameCombo(String name) => _guard(() async {
+    final combo = state.current;
+    if (combo == null || name.trim().isEmpty) return;
+    _replaceCurrent(
+      combo.copyWith(
+        name: await _api.renameSession(combo.sessionId, name.trim()),
+      ),
+    );
+  });
+
+  Future<void> deleteCombo(String sessionId) => _guard(() async {
+    await _api.dropSession(sessionId);
+    var combos = state.combos
+        .where((item) => item.sessionId != sessionId)
+        .toList();
+    if (combos.isEmpty) combos = [await _api.createSession('组合1')];
+    state = state.copyWith(
+      combos: combos,
+      currentSessionId: combos.first.sessionId,
+      clearStats: true,
+    );
+    await _loadCurrent();
+  });
+
+  Future<void> _loadCurrent() async {
+    final id = state.currentSessionId;
+    if (id == null) return;
+    final detail = await _api.getSession(id);
+    _replaceCurrent(
+      detail.copyWith(
+        stocks: detail.conditions.isEmpty ? const [] : detail.stocks,
+      ),
+    );
   }
 
-  Future<String> _restoreSession() async {
-    final sessionId = await _api.createSession();
-    for (final condition in state.conditions) {
-      await _api.applyCondition(sessionId, condition);
-    }
-    return sessionId;
+  void _replaceCurrent(
+    SelectionCombo combo, {
+    int? before,
+    int? removed,
+    bool clearStats = false,
+  }) {
+    state = state.copyWith(
+      combos: [
+        for (final item in state.combos)
+          if (item.sessionId == combo.sessionId) combo else item,
+      ],
+      lastBefore: before,
+      lastRemoved: removed,
+      clearStats: clearStats,
+      revision: state.revision + 1,
+    );
   }
 
-  Future<void> removeCondition(int index) async {
-    var sessionId = state.sessionId;
-    if (sessionId == null || index < 0 || index >= state.conditions.length) {
-      return;
-    }
+  Future<void> _guard(Future<void> Function() operation) async {
+    if (state.loading) return;
     state = state.copyWith(loading: true, clearError: true);
     try {
-      final original = [...state.conditions];
-      StepResult? result;
-      try {
-        result = await _removeAt(sessionId, index, original);
-      } catch (error) {
-        if (!_api.isSessionMissing(error)) rethrow;
-        sessionId = await _restoreSession();
-        result = await _removeAt(sessionId, index, original);
-      }
-      final remaining = [...original]..removeAt(index);
-      state = state.copyWith(
-        sessionId: sessionId,
-        total: result?.after ?? state.total,
-        stocks: result?.stocks ?? state.stocks,
-        conditions: remaining,
-        loading: false,
-        revision: state.revision + 1,
-      );
+      await operation();
+      state = state.copyWith(loading: false);
     } catch (error) {
       state = state.copyWith(loading: false, error: error.toString());
     }
-  }
-
-  Future<StepResult?> _removeAt(
-    String sessionId,
-    int index,
-    List<Condition> original,
-  ) async {
-    StepResult? result;
-    for (var cursor = original.length - 1; cursor >= index; cursor--) {
-      result = await _api.removeLast(sessionId);
-    }
-    for (final condition in original.skip(index + 1)) {
-      result = await _api.applyCondition(sessionId, condition);
-    }
-    return result;
   }
 }

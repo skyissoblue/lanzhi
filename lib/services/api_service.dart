@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../models/condition.dart';
+import '../models/selection_combo.dart';
 import '../models/stock.dart';
 
 class StepResult {
@@ -46,7 +47,9 @@ class StepResult {
     appliedConditions: json.containsKey('applied_conditions')
         ? (json['applied_conditions'] as List<dynamic>? ?? const [])
               .whereType<Map>()
-              .map((item) => Condition.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) => Condition.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList()
         : null,
     message: json['message']?.toString(),
@@ -65,11 +68,48 @@ class ApiService {
   final Dio _dio;
   int lastSessionTotal = 0;
 
-  Future<String> createSession() async {
-    final response = await _dio.post<Map<String, dynamic>>('/api/session');
+  Future<SelectionCombo> createSession([String? name]) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/session',
+      data: name == null ? null : {'name': name},
+    );
     final data = response.data ?? const {};
     lastSessionTotal = (data['total'] as num?)?.toInt() ?? 0;
-    return data['session_id']?.toString() ?? '';
+    return SelectionCombo.fromJson({
+      ...data,
+      'current_count': lastSessionTotal,
+    });
+  }
+
+  Future<List<SelectionCombo>> getSessions() async {
+    final response = await _dio.get<List<dynamic>>('/api/session');
+    return (response.data ?? const [])
+        .whereType<Map>()
+        .map((item) => SelectionCombo.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  Future<SelectionCombo> getSession(String sessionId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/session/$sessionId',
+    );
+    return SelectionCombo.fromJson(response.data ?? const {});
+  }
+
+  Future<String> renameSession(String sessionId, String name) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/session/$sessionId/rename',
+      data: {'name': name},
+    );
+    return response.data?['name']?.toString() ?? name;
+  }
+
+  Future<void> dropSession(String sessionId) async {
+    await _dio.delete<void>('/api/session/$sessionId/drop');
+  }
+
+  Future<void> resetSession(String sessionId) async {
+    await _dio.delete<void>('/api/session/$sessionId');
   }
 
   Future<StepResult> applyCondition(
@@ -86,6 +126,13 @@ class ApiService {
   Future<StepResult> removeLast(String sessionId) async {
     final response = await _dio.delete<Map<String, dynamic>>(
       '/api/session/$sessionId/condition/last',
+    );
+    return StepResult.fromJson(response.data ?? const {});
+  }
+
+  Future<StepResult> removeCondition(String sessionId, int index) async {
+    final response = await _dio.delete<Map<String, dynamic>>(
+      '/api/session/$sessionId/condition/$index',
     );
     return StepResult.fromJson(response.data ?? const {});
   }

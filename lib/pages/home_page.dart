@@ -7,6 +7,8 @@ import '../widgets/condition_chip.dart';
 import '../widgets/stock_result_list.dart';
 import '../widgets/voice_button.dart';
 import 'kline_page.dart';
+import 'profile_page.dart';
+import 'watchlist_page.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -140,13 +142,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
-        title: Text(['组合选股', '自选股', '行情'][_tabIndex]),
+        title: Text(['组合选股', '自选股', '我的'][_tabIndex]),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
       ),
-      body: _tabIndex == 0
-          ? _selectionBody(state)
-          : const Center(child: Text('敬请期待')),
+      body: [
+        _selectionBody(state),
+        const WatchlistPage(),
+        const ProfilePage(),
+      ][_tabIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
         onDestinationSelected: (value) => setState(() => _tabIndex = value),
@@ -162,8 +166,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             label: '自选股',
           ),
           NavigationDestination(
-            icon: Icon(Icons.candlestick_chart_outlined),
-            label: '行情',
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: '我的',
           ),
         ],
       ),

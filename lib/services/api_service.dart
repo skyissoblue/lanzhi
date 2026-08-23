@@ -63,10 +63,62 @@ class ApiService {
       'API_BASE_URL',
       defaultValue: 'http://10.0.2.2:8000',
     ),
-  }) : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl));
+  }) : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = AuthTokenStore.token;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+      ),
+    );
+  }
 
   final Dio _dio;
   int lastSessionTotal = 0;
+
+  Future<Map<String, dynamic>> register(
+    String phone,
+    String password,
+    String? nickname,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/register',
+      data: {
+        'phone': phone,
+        'password': password,
+        if (nickname?.isNotEmpty == true) 'nickname': nickname,
+      },
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> login(String phone, String password) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/auth/login',
+      data: {'phone': phone, 'password': password},
+    );
+    return response.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> me() async {
+    final response = await _dio.get<Map<String, dynamic>>('/api/auth/me');
+    return response.data ?? const {};
+  }
+
+  Future<List<Map<String, dynamic>>> groupedWatchlist() async {
+    final response = await _dio.get<List<dynamic>>('/api/watchlist/by-combo');
+    return (response.data ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<void> removeWatchlist(String code) =>
+      _dio.delete<void>('/api/watchlist/$code');
 
   Future<SelectionCombo> createSession([String? name]) async {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -161,4 +213,8 @@ class ApiService {
       error.response?.statusCode == 404 &&
       (error.response?.data is! Map ||
           (error.response?.data as Map)['detail'] == 'session not found');
+}
+
+class AuthTokenStore {
+  static String? token;
 }

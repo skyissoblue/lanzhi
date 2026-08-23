@@ -159,6 +159,17 @@ class ApiService {
         .toList();
   }
 
+  Future<List<SelectionCombo>> getFavoriteSessions() async {
+    final response = await _dio.get<List<dynamic>>(
+      '/api/combos',
+      queryParameters: {'favorite': true},
+    );
+    return (response.data ?? const [])
+        .whereType<Map>()
+        .map((item) => SelectionCombo.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
   Future<SelectionCombo> getSession(String sessionId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/combos/$sessionId',

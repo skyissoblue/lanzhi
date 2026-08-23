@@ -149,7 +149,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       body: [
         _selectionBody(state),
         const WatchlistPage(),
-        const ProfilePage(),
+        ProfilePage(
+          onOpenCombo: (comboId) {
+            setState(() => _tabIndex = 0);
+            ref.read(sessionProvider.notifier).switchCombo(comboId);
+          },
+        ),
       ][_tabIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,

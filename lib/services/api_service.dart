@@ -120,6 +120,20 @@ class ApiService {
   Future<void> removeWatchlist(String code) =>
       _dio.delete<void>('/api/watchlist/$code');
 
+  Future<List<Map<String, dynamic>>> getKline(
+    String code, {
+    String period = 'daily',
+  }) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/api/stock/$code/kline',
+      queryParameters: {'period': period},
+    );
+    return (response.data ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   Future<void> addWatchlist(String code, String name, String comboId) =>
       _dio.post<void>(
         '/api/watchlist',

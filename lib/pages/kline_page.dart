@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:k_chart_plus/k_chart_plus.dart';
 
 import '../widgets/indicator_panel.dart';
+import '../services/api_service.dart';
 
 enum KlinePeriod { daily, weekly, monthly, yearly }
 
@@ -48,7 +49,7 @@ class KlinePage extends StatefulWidget {
 
 class _KlinePageState extends State<KlinePage> {
   late final IndicatorController _indicators;
-  late final List<_Bar> _dailyBars;
+  late List<_Bar> _dailyBars;
   late List<KLineEntity> _data;
   KlinePeriod _period = KlinePeriod.daily;
 
@@ -59,6 +60,33 @@ class _KlinePageState extends State<KlinePage> {
     _dailyBars = _sampleDailyBars();
     _data = _entitiesFor(_period);
     _calculate();
+    _loadRealBars();
+  }
+
+  Future<void> _loadRealBars() async {
+    try {
+      final rows = await ApiService().getKline(widget.stockCode);
+      if (rows.isEmpty || !mounted) return;
+      _dailyBars = rows
+          .map(
+            (row) => _Bar(
+              time: DateTime.parse('${row['date']}'),
+              open: (row['open'] as num).toDouble(),
+              high: (row['high'] as num).toDouble(),
+              low: (row['low'] as num).toDouble(),
+              close: (row['close'] as num).toDouble(),
+              volume: (row['volume'] as num?)?.toDouble() ?? 0,
+              amount: (row['amount'] as num?)?.toDouble() ?? 0,
+            ),
+          )
+          .toList();
+      setState(() {
+        _data = _entitiesFor(_period);
+        _calculate();
+      });
+    } catch (_) {
+      // Keep deterministic sample bars when local market data is unavailable.
+    }
   }
 
   @override

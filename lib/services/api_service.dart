@@ -134,6 +134,16 @@ class ApiService {
         .toList();
   }
 
+  Future<String> transcribeAudio(String path) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/voice/transcribe',
+      data: FormData.fromMap({
+        'audio': await MultipartFile.fromFile(path, filename: 'recording.wav'),
+      }),
+    );
+    return response.data?['text']?.toString().trim() ?? '';
+  }
+
   Future<void> addWatchlist(String code, String name, String comboId) =>
       _dio.post<void>(
         '/api/watchlist',

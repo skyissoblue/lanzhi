@@ -22,9 +22,7 @@ class Condition {
     value: json['value'],
     name: json['name']?.toString(),
     extra: Map<String, dynamic>.from(json)
-      ..removeWhere(
-        (key, _) => {'type', 'op', 'value', 'name'}.contains(key),
-      ),
+      ..removeWhere((key, _) => {'type', 'op', 'value', 'name'}.contains(key)),
   );
 
   Map<String, dynamic> toJson() => {

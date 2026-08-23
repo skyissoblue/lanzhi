@@ -1,33 +1,13 @@
-import 'package:whisper_kit/whisper_kit.dart';
-
+import 'api_service.dart';
 import 'voice_transcriber.dart';
 
-VoiceTranscriber createTranscriber() => WhisperTinyTranscriber();
+VoiceTranscriber createTranscriber() => ServerVoiceTranscriber();
 
-const _whisperModelBaseUrl = String.fromEnvironment(
-  'WHISPER_MODEL_BASE_URL',
-  defaultValue: 'http://101.43.105.130:8080/models',
-);
-
-class WhisperTinyTranscriber implements VoiceTranscriber {
-  WhisperTinyTranscriber({Whisper? whisper})
-      : _whisper = whisper ??
-            const Whisper(
-              model: WhisperModel.tiny,
-              downloadHost: _whisperModelBaseUrl,
-            );
-
-  final Whisper _whisper;
+class ServerVoiceTranscriber implements VoiceTranscriber {
+  ServerVoiceTranscriber({ApiService? api}) : _api = api ?? ApiService();
+  final ApiService _api;
 
   @override
-  Future<String> transcribe(String audioPath) async {
-    final result = await _whisper.transcribe(
-      transcribeRequest: TranscribeRequest(
-        audio: audioPath,
-        language: 'zh',
-        isNoTimestamps: true,
-      ),
-    );
-    return result.text.trim();
-  }
+  Future<String> transcribe(String audioPath) =>
+      _api.transcribeAudio(audioPath);
 }

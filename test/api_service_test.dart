@@ -1,8 +1,37 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voice_stock_picker/services/api_service.dart';
+import 'package:voice_stock_picker/services/app_error.dart';
+import 'package:voice_stock_picker/services/auth_validation.dart';
 
 void main() {
+  test('validates registration fields before sending', () {
+    expect(validatePhone('1378892145'), '请输入正确的11位手机号');
+    expect(validatePhone('13788921456'), isNull);
+    expect(validatePassword('1234567'), '密码长度必须为8～72位');
+    expect(validatePassword('12345678'), isNull);
+  });
+
+  test('turns backend validation errors into friendly Chinese messages', () {
+    final options = RequestOptions(path: '/api/auth/register');
+    final error = DioException(
+      requestOptions: options,
+      response: Response<Map<String, dynamic>>(
+        requestOptions: options,
+        statusCode: 422,
+        data: const {
+          'detail': [
+            {
+              'loc': ['body', 'phone'],
+              'msg': 'String should match pattern',
+            },
+          ],
+        },
+      ),
+    );
+    expect(friendlyErrorMessage(error), '请输入正确的11位手机号');
+  });
+
   test('recognizes an expired backend session', () {
     final options = RequestOptions(path: '/api/session/expired/stocks');
     final error = DioException(

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/app_error.dart';
 import '../services/auth_service.dart';
 
 class AuthState {
@@ -40,8 +41,12 @@ class AuthController extends StateNotifier<AuthState> {
           : await _service.login(phone, password);
       state = AuthState(ready: true, loggedIn: true, user: user);
     } catch (e) {
-      state = AuthState(ready: true, error: e.toString());
+      state = AuthState(ready: true, error: friendlyErrorMessage(e));
     }
+  }
+
+  void clearError() {
+    if (state.error != null) state = const AuthState(ready: true);
   }
 
   Future<void> logout() async {

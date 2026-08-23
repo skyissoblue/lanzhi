@@ -9,6 +9,7 @@ class StockResultList extends StatelessWidget {
     required this.hasConditions,
     required this.stocks,
     required this.onStockTap,
+    this.onFavorite,
     this.loading = false,
     this.revision = 0,
   });
@@ -16,6 +17,7 @@ class StockResultList extends StatelessWidget {
   final bool hasConditions;
   final List<Stock> stocks;
   final ValueChanged<Stock> onStockTap;
+  final ValueChanged<Stock>? onFavorite;
   final bool loading;
   final int revision;
 
@@ -45,6 +47,9 @@ class StockResultList extends StatelessWidget {
       itemBuilder: (context, index) => StockListItem(
         stock: stocks[index],
         onTap: () => onStockTap(stocks[index]),
+        onFavorite: onFavorite == null
+            ? null
+            : () => onFavorite!(stocks[index]),
       ),
     );
   }

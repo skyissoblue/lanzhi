@@ -275,6 +275,13 @@ class _HomePageState extends ConsumerState<HomePage> {
             ],
           ),
         ),
+        IconButton(
+          tooltip: combo.isFavorite ? '取消收藏组合' : '收藏此组合',
+          onPressed: state.loading
+              ? null
+              : () => ref.read(sessionProvider.notifier).toggleFavorite(),
+          icon: Icon(combo.isFavorite ? Icons.bookmark : Icons.bookmark_border),
+        ),
         if (combo.conditions.isNotEmpty)
           TextButton.icon(
             onPressed: state.loading
@@ -328,6 +335,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                 KlinePage(stockCode: stock.code, stockName: stock.name),
           ),
         ),
+        onFavorite: (stock) async {
+          await ref
+              .read(sessionProvider.notifier)
+              .addToWatchlist(stock.code, stock.name);
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('${stock.name} 已加入自选')));
+          }
+        },
       ),
     );
   }

@@ -9,6 +9,7 @@ class SelectionCombo {
     this.total = 0,
     this.currentCount = 0,
     this.stocks = const [],
+    this.isFavorite = false,
   });
 
   final String sessionId;
@@ -17,9 +18,12 @@ class SelectionCombo {
   final int total;
   final int currentCount;
   final List<Stock> stocks;
+  final bool isFavorite;
 
   factory SelectionCombo.fromJson(Map<String, dynamic> json) => SelectionCombo(
-    sessionId: (json['session_id'] ?? json['sessionId'] ?? '').toString(),
+    sessionId:
+        (json['combo_id'] ?? json['session_id'] ?? json['sessionId'] ?? '')
+            .toString(),
     name: (json['name'] ?? '未命名组合').toString(),
     conditions: (json['conditions'] as List<dynamic>? ?? const [])
         .whereType<Map>()
@@ -34,6 +38,7 @@ class SelectionCombo {
         .whereType<Map>()
         .map((item) => Stock.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
+    isFavorite: json['is_favorite'] == true || json['is_favorite'] == 1,
   );
 
   SelectionCombo copyWith({
@@ -42,6 +47,7 @@ class SelectionCombo {
     int? total,
     int? currentCount,
     List<Stock>? stocks,
+    bool? isFavorite,
   }) => SelectionCombo(
     sessionId: sessionId,
     name: name ?? this.name,
@@ -49,5 +55,6 @@ class SelectionCombo {
     total: total ?? this.total,
     currentCount: currentCount ?? this.currentCount,
     stocks: stocks ?? this.stocks,
+    isFavorite: isFavorite ?? this.isFavorite,
   );
 }

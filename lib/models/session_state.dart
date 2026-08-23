@@ -158,6 +158,22 @@ class ComboController extends StateNotifier<ComboState> {
     );
   });
 
+  Future<void> toggleFavorite() => _guard(() async {
+    final combo = state.current;
+    if (combo == null) return;
+    final favorite = await _api.favoriteCombo(
+      combo.sessionId,
+      !combo.isFavorite,
+    );
+    _replaceCurrent(combo.copyWith(isFavorite: favorite));
+  });
+
+  Future<void> addToWatchlist(String code, String name) => _guard(() async {
+    final combo = state.current;
+    if (combo == null) return;
+    await _api.addWatchlist(code, name, combo.sessionId);
+  });
+
   Future<void> deleteCombo(String sessionId) => _guard(() async {
     await _api.dropSession(sessionId);
     var combos = state.combos

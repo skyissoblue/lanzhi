@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import '../models/stock.dart';
 
 class StockListItem extends StatelessWidget {
-  const StockListItem({super.key, required this.stock, this.onTap});
+  const StockListItem({
+    super.key,
+    required this.stock,
+    this.onTap,
+    this.onFavorite,
+  });
 
   final Stock stock;
   final VoidCallback? onTap;
+  final VoidCallback? onFavorite;
 
   @override
   Widget build(BuildContext context) => ListTile(
@@ -27,6 +33,12 @@ class StockListItem extends StatelessWidget {
         stock.board,
       ].whereType<String>().where((text) => text.isNotEmpty).join(' · '),
     ),
-    trailing: const Icon(Icons.chevron_right),
+    trailing: onFavorite == null
+        ? const Icon(Icons.chevron_right)
+        : IconButton(
+            icon: const Icon(Icons.star_border),
+            tooltip: '加入自选',
+            onPressed: onFavorite,
+          ),
   );
 }

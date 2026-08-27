@@ -80,8 +80,31 @@ class ComboController extends StateNotifier<ComboState> {
     });
   }
 
-  Future<void> createCombo(String name) => _guard(() async {
-    final combo = await _api.createSession(name.trim());
+  Future<void> createCombo(String name, {String? assetType}) =>
+      _guard(() async {
+        final type = assetType ?? state.current?.assetType ?? 'stock';
+        final combo = await _api.createSession(name.trim(), type);
+        state = state.copyWith(
+          combos: [...state.combos, combo],
+          currentSessionId: combo.sessionId,
+          clearStats: true,
+        );
+      });
+
+  Future<void> switchAssetType(String assetType) => _guard(() async {
+    if (assetType != 'stock' && assetType != 'etf') return;
+    for (final combo in state.combos) {
+      if (combo.assetType == assetType) {
+        state = state.copyWith(
+          currentSessionId: combo.sessionId,
+          clearStats: true,
+        );
+        await _loadCurrent();
+        return;
+      }
+    }
+    final name = assetType == 'etf' ? 'ETF组合' : '股票组合';
+    final combo = await _api.createSession(name, assetType);
     state = state.copyWith(
       combos: [...state.combos, combo],
       currentSessionId: combo.sessionId,

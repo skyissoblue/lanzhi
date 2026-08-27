@@ -63,7 +63,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       '组合${ref.read(sessionProvider).combos.length + 1}',
     );
     if (name != null) {
-      await ref.read(sessionProvider.notifier).createCombo(name);
+      await ref
+          .read(sessionProvider.notifier)
+          .createCombo(
+            name,
+            assetType: ref.read(sessionProvider).current?.assetType,
+          );
     }
   }
 
@@ -140,12 +145,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final state = ref.watch(sessionProvider);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      appBar: AppBar(
-        title: Text(['组合选股', '自选股', '我的'][_tabIndex]),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-      ),
+      backgroundColor: const Color(0xFFF5F5F5),
+      appBar: AppBar(title: Text(['澜知选股', '我的自选', '我的'][_tabIndex])),
       body: [
         _selectionBody(state),
         const WatchlistPage(),
@@ -185,6 +186,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     return SafeArea(
       child: Column(
         children: [
+          _assetSelector(state),
           _comboTabs(state),
           if (state.error != null)
             MaterialBanner(
@@ -206,6 +208,48 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  Widget _assetSelector(ComboState state) {
+    final selected = state.current?.assetType ?? 'stock';
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: SegmentedButton<String>(
+        key: const ValueKey('asset-selector'),
+        segments: const [
+          ButtonSegment(
+            value: 'stock',
+            label: Text('A股'),
+            icon: Icon(Icons.show_chart),
+          ),
+          ButtonSegment(
+            value: 'etf',
+            label: Text('ETF'),
+            icon: Icon(Icons.pie_chart_outline),
+          ),
+        ],
+        selected: {selected},
+        onSelectionChanged: state.loading
+            ? null
+            : (values) => ref
+                  .read(sessionProvider.notifier)
+                  .switchAssetType(values.first),
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? Colors.white
+                : const Color(0xFF333333),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? const Color(0xFFF52D3A)
+                : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _comboTabs(ComboState state) => Container(
     color: Colors.white,
     padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
@@ -216,7 +260,10 @@ class _HomePageState extends ConsumerState<HomePage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final combo in state.combos)
+                for (final combo in state.combos.where(
+                  (item) =>
+                      item.assetType == (state.current?.assetType ?? 'stock'),
+                ))
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
@@ -268,7 +315,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   key: ValueKey(combo.currentCount),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF126B4D),
+                    color: const Color(0xFFF52D3A),
                   ),
                 ),
               ),
@@ -390,7 +437,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 decoration: InputDecoration(
                   hintText: '例如：创业板站上10周线RPS>87',
                   filled: true,
-                  fillColor: const Color(0xFFF1F4F2),
+                  fillColor: const Color(0xFFF5F5F5),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,

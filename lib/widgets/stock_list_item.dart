@@ -18,8 +18,8 @@ class StockListItem extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     onTap: onTap,
     leading: CircleAvatar(
-      backgroundColor: const Color(0xFFE8F3EE),
-      foregroundColor: const Color(0xFF126B4D),
+      backgroundColor: const Color(0xFFFFECEE),
+      foregroundColor: const Color(0xFFF52D3A),
       child: Text(stock.name.isEmpty ? '?' : stock.name.substring(0, 1)),
     ),
     title: Text(

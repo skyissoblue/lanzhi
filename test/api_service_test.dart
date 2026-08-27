@@ -3,8 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voice_stock_picker/services/api_service.dart';
 import 'package:voice_stock_picker/services/app_error.dart';
 import 'package:voice_stock_picker/services/auth_validation.dart';
+import 'package:voice_stock_picker/models/selection_combo.dart';
 
 void main() {
+  test('keeps stock and ETF combinations in separate universes', () {
+    final stock = SelectionCombo.fromJson({
+      'combo_id': 1,
+      'name': '股票组合',
+      'asset_type': 'stock',
+    });
+    final etf = SelectionCombo.fromJson({
+      'combo_id': 2,
+      'name': 'ETF组合',
+      'asset_type': 'etf',
+    });
+
+    expect(stock.assetType, 'stock');
+    expect(etf.assetType, 'etf');
+  });
+
   test('validates registration fields before sending', () {
     expect(validatePhone('1378892145'), '请输入正确的11位手机号');
     expect(validatePhone('13788921456'), isNull);

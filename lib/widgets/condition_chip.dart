@@ -13,10 +13,10 @@ class ConditionTag extends StatelessWidget {
     label: Text(condition.label),
     onDeleted: onDeleted,
     deleteIcon: const Icon(Icons.close, size: 17),
-    backgroundColor: const Color(0xFFE8F3EE),
-    side: const BorderSide(color: Color(0xFFCFE2D8)),
+    backgroundColor: const Color(0xFFFFECEE),
+    side: const BorderSide(color: Color(0xFFFFC8CD)),
     labelStyle: const TextStyle(
-      color: Color(0xFF126B4D),
+      color: Color(0xFFF52D3A),
       fontWeight: FontWeight.w600,
     ),
   );

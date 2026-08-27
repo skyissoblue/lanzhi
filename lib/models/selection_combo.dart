@@ -10,6 +10,7 @@ class SelectionCombo {
     this.currentCount = 0,
     this.stocks = const [],
     this.isFavorite = false,
+    this.assetType = 'stock',
   });
 
   final String sessionId;
@@ -19,6 +20,7 @@ class SelectionCombo {
   final int currentCount;
   final List<Stock> stocks;
   final bool isFavorite;
+  final String assetType;
 
   factory SelectionCombo.fromJson(Map<String, dynamic> json) => SelectionCombo(
     sessionId:
@@ -39,6 +41,7 @@ class SelectionCombo {
         .map((item) => Stock.fromJson(Map<String, dynamic>.from(item)))
         .toList(),
     isFavorite: json['is_favorite'] == true || json['is_favorite'] == 1,
+    assetType: (json['asset_type'] ?? 'stock').toString(),
   );
 
   SelectionCombo copyWith({
@@ -48,6 +51,7 @@ class SelectionCombo {
     int? currentCount,
     List<Stock>? stocks,
     bool? isFavorite,
+    String? assetType,
   }) => SelectionCombo(
     sessionId: sessionId,
     name: name ?? this.name,
@@ -56,5 +60,6 @@ class SelectionCombo {
     currentCount: currentCount ?? this.currentCount,
     stocks: stocks ?? this.stocks,
     isFavorite: isFavorite ?? this.isFavorite,
+    assetType: assetType ?? this.assetType,
   );
 }

@@ -54,7 +54,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     const Icon(
                       Icons.auto_graph,
                       size: 72,
-                      color: Color(0xFF126B4D),
+                      color: Color(0xFFF52D3A),
                     ),
                     const SizedBox(height: 16),
                     Text(

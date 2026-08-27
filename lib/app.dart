@@ -24,7 +24,25 @@ class _AppState extends ConsumerState<VoiceStockPickerApp> {
       title: '澜知选股',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF126B4D)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFF52D3A),
+          primary: const Color(0xFFF52D3A),
+          surface: Colors.white,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF52D3A),
+          foregroundColor: Colors.white,
+          surfaceTintColor: Color(0xFFF52D3A),
+          centerTitle: true,
+        ),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: Color(0xFFFFE5E7),
+          iconTheme: WidgetStatePropertyAll(
+            IconThemeData(color: Color(0xFFF52D3A)),
+          ),
+        ),
         useMaterial3: true,
       ),
       home: !auth.ready

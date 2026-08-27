@@ -162,15 +162,19 @@ class ApiService {
     return response.data?['favorite'] == true;
   }
 
-  Future<SelectionCombo> createSession([String? name]) async {
+  Future<SelectionCombo> createSession([
+    String? name,
+    String assetType = 'stock',
+  ]) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/combos',
-      data: {'name': name ?? '默认组合'},
+      data: {'name': name ?? '默认组合', 'asset_type': assetType},
     );
     final data = response.data ?? const {};
     lastSessionTotal = (data['total'] as num?)?.toInt() ?? 0;
     return SelectionCombo.fromJson({
       ...data,
+      'asset_type': assetType,
       'current_count': lastSessionTotal,
     });
   }

@@ -9,3 +9,5 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Vendored upstream chart library; lint application code separately.
+    - packages/**

@@ -184,6 +184,8 @@ class _KlinePageState extends State<KlinePage> {
               _data,
               const KChartStyle(),
               const KChartColors(),
+              minScaleX: 0.12,
+              maxScaleX: 3.0,
               isTrendLine: false,
               mainIndicators: _mainIndicators,
               secondaryIndicators: _secondaryIndicators,

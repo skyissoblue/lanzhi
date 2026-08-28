@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voice_stock_picker/pages/kline_page.dart';
+import 'package:k_chart_plus/k_chart_plus.dart';
 import 'package:voice_stock_picker/widgets/indicator_panel.dart';
 
 void main() {
@@ -13,6 +14,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('kline-chart-daily')), findsOneWidget);
+    final chart = tester.widget<KChartWidget>(find.byType(KChartWidget));
+    expect(chart.minScaleX, 0.12);
+    expect(chart.maxScaleX, 3.0);
     expect(find.textContaining('000001'), findsOneWidget);
     final volume = tester.widget<Switch>(
       find.byKey(const ValueKey('indicator-成交量')),

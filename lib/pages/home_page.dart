@@ -17,6 +17,8 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  // Voice input is temporarily disabled. Set this to true to restore it.
+  static const bool _voiceInputEnabled = false;
   final _controller = TextEditingController();
   int _tabIndex = 0;
   bool _transcribing = false;
@@ -351,7 +353,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     color: Colors.white,
     padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
     child: combo.conditions.isEmpty
-        ? const Text('还没有条件，用语音或文字加一个吧', key: ValueKey('empty-conditions'))
+        ? const Text('还没有条件，用文字加一个吧', key: ValueKey('empty-conditions'))
         : Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -412,7 +414,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_transcribing || _recognizedText != null)
+        if (_voiceInputEnabled &&
+            (_transcribing || _recognizedText != null))
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -423,12 +426,14 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         Row(
           children: [
-            VoiceButton(
-              enabled: !state.loading && !_transcribing,
-              onRecordStart: _startVoice,
-              onRecordEnd: _stopVoice,
-            ),
-            const SizedBox(width: 8),
+            if (_voiceInputEnabled) ...[
+              VoiceButton(
+                enabled: !state.loading && !_transcribing,
+                onRecordStart: _startVoice,
+                onRecordEnd: _stopVoice,
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
               child: TextField(
                 controller: _controller,

@@ -115,7 +115,8 @@ class _KChartWidgetState extends State<KChartWidget>
     return mScaleX;
   }
 
-  double _lastScale = 1.0;
+  double _pinchBaseScale = 1.0;
+  double _pinchBaseGestureScale = 1.0;
   bool isScale = false, isDrag = false, isLongPress = false, isOnTap = false;
 
   @override
@@ -215,35 +216,46 @@ class _KChartWidgetState extends State<KChartWidget>
           notifyChanged();
         }
       },
-      onHorizontalDragDown: (details) {
-        isOnTap = false;
-        _stopAnimation();
-        _onDragChanged(true);
-      },
-      onHorizontalDragUpdate: (details) {
-        if (isScale || isLongPress) return;
-        mScrollX = ((details.primaryDelta ?? 0) / mScaleX + mScrollX)
-            .clamp(0.0, ChartPainter.maxScrollX)
-            .toDouble();
-        notifyChanged();
-      },
-      onHorizontalDragEnd: (DragEndDetails details) {
-        var velocity = details.velocity.pixelsPerSecond.dx;
-        _onFling(velocity);
-      },
-      onHorizontalDragCancel: () => _onDragChanged(false),
       onScaleStart: (_) {
-        isScale = true;
+        isOnTap = false;
+        isScale = false;
+        isDrag = false;
+        _stopAnimation(needNotify: false);
       },
       onScaleUpdate: (details) {
-        if (isDrag || isLongPress) return;
-        mScaleX = (_lastScale * details.scale)
-            .clamp(widget.minScaleX, widget.maxScaleX);
+        if (isLongPress) return;
+
+        if (details.pointerCount >= 2) {
+          if (!isScale) {
+            isScale = true;
+            _onDragChanged(false);
+            _pinchBaseScale = mScaleX;
+            _pinchBaseGestureScale = details.scale;
+          }
+
+          // `scale` is calculated from the distance between the two pointers.
+          // It is therefore independent of pinch direction and focal point:
+          // moving inward on any axis zooms out, moving outward zooms in.
+          final distanceRatio = details.scale / _pinchBaseGestureScale;
+          mScaleX = (_pinchBaseScale * distanceRatio)
+              .clamp(widget.minScaleX, widget.maxScaleX)
+              .toDouble();
+        } else if (!isScale) {
+          if (!isDrag) _onDragChanged(true);
+          mScrollX = (details.focalPointDelta.dx / mScaleX + mScrollX)
+              .clamp(0.0, ChartPainter.maxScrollX)
+              .toDouble();
+        }
         notifyChanged();
       },
-      onScaleEnd: (_) {
+      onScaleEnd: (details) {
+        if (isDrag && !isScale) {
+          _onFling(details.velocity.pixelsPerSecond.dx);
+        } else {
+          _onDragChanged(false);
+        }
         isScale = false;
-        _lastScale = mScaleX;
+        isDrag = false;
       },
       onLongPressStart: (details) {
         isOnTap = false;

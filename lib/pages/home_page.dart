@@ -10,6 +10,37 @@ import 'kline_page.dart';
 import 'profile_page.dart';
 import 'watchlist_page.dart';
 
+Future<String?> showComboNameDialog(
+  BuildContext context,
+  String title, [
+  String initial = '',
+]) async {
+  var value = initial;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextFormField(
+        initialValue: initial,
+        autofocus: true,
+        maxLength: 40,
+        onChanged: (text) => value = text,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, value.trim()),
+          child: const Text('确定'),
+        ),
+      ],
+    ),
+  );
+  return result?.trim().isEmpty == true ? null : result;
+}
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
   @override
@@ -36,28 +67,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
-  Future<String?> _askName(String title, [String initial = '']) async {
-    final input = TextEditingController(text: initial);
-    final value = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(controller: input, autofocus: true, maxLength: 40),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, input.text.trim()),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-    input.dispose();
-    return value?.trim().isEmpty == true ? null : value;
-  }
+  Future<String?> _askName(String title, [String initial = '']) =>
+      showComboNameDialog(context, title, initial);
 
   Future<void> _newCombo() async {
     final name = await _askName(

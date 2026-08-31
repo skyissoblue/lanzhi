@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/api_service.dart';
+import '../services/app_error.dart';
 import '../services/voice_service.dart';
 import 'selection_combo.dart';
 
@@ -116,6 +117,8 @@ class ComboController extends StateNotifier<ComboState> {
     state = state.copyWith(currentSessionId: sessionId, clearStats: true);
     await _loadCurrent();
   });
+
+  Future<void> reloadCurrent() => _guard(_loadCurrent);
 
   Future<void> submitText(String text) => _guard(() async {
     final combo = state.current;
@@ -247,7 +250,10 @@ class ComboController extends StateNotifier<ComboState> {
       await operation();
       state = state.copyWith(loading: false);
     } catch (error) {
-      state = state.copyWith(loading: false, error: error.toString());
+      state = state.copyWith(
+        loading: false,
+        error: friendlyErrorMessage(error),
+      );
     }
   }
 }

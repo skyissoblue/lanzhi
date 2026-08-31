@@ -210,8 +210,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               actions: [
                 TextButton(
                   onPressed: () =>
-                      ref.read(sessionProvider.notifier).initialize(),
-                  child: const Text('重试'),
+                      ref.read(sessionProvider.notifier).reloadCurrent(),
+                  child: const Text('刷新'),
                 ),
               ],
             ),

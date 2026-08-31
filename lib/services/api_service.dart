@@ -61,7 +61,7 @@ class ApiService {
     Dio? dio,
     String baseUrl = const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'http://10.0.2.2:8000',
+      defaultValue: 'http://101.43.105.130:8080',
     ),
   }) : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
     _dio.interceptors.add(

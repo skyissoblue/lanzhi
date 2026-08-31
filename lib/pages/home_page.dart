@@ -196,11 +196,14 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Widget _selectionBody(ComboState state) {
     final combo = state.current;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return SafeArea(
       child: Column(
         children: [
-          _assetSelector(state),
-          _comboTabs(state),
+          if (!keyboardVisible) ...[
+            _assetSelector(state),
+            _comboTabs(state),
+          ],
           if (state.error != null)
             MaterialBanner(
               content: Text(state.error!),
